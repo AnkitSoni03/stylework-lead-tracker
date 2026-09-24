@@ -1,4 +1,4 @@
-import type { Lead, LeadListResponse, LeadQuery, LeadStatus, NewLead } from './types'
+import type { Lead, LeadListResponse, LeadQuery, LeadStats, LeadStatus, NewLead } from './types'
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000').replace(/\/$/, '')
 
@@ -43,6 +43,10 @@ export function listLeads(query: LeadQuery = {}, signal?: AbortSignal) {
   }
   const qs = params.toString()
   return request<LeadListResponse>(`/api/leads${qs ? `?${qs}` : ''}`, { signal })
+}
+
+export function getLeadStats(signal?: AbortSignal) {
+  return request<LeadStats>('/api/leads/stats', { signal })
 }
 
 export function createLead(input: NewLead) {

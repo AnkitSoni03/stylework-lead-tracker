@@ -32,6 +32,11 @@ export interface LeadListResponse {
   limit: number
 }
 
+export interface LeadStats {
+  total: number
+  byStatus: Record<LeadStatus, number>
+}
+
 export interface LeadQuery {
   search?: string
   status?: LeadStatus

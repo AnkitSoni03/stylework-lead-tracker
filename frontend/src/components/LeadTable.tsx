@@ -1,14 +1,6 @@
 import { LEAD_STATUSES, STATUS_LABELS, type Lead, type LeadStatus } from '../types'
-
-const STATUS_STYLES: Record<LeadStatus, string> = {
-  new: 'bg-sky-50 text-sky-700 border-sky-200',
-  contacted: 'bg-amber-50 text-amber-700 border-amber-200',
-  qualified: 'bg-violet-50 text-violet-700 border-violet-200',
-  converted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  lost: 'bg-slate-100 text-slate-600 border-slate-200',
-}
-
-const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+import { STATUS_META } from '../lib/status'
+import { avatarColor, formatDateTime, initials, timeAgo } from '../lib/format'
 
 interface Props {
   leads: Lead[]
@@ -16,47 +8,111 @@ interface Props {
   onStatusChange: (lead: Lead, status: LeadStatus) => void
 }
 
+const th = 'py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase'
+
 export function LeadTable({ leads, updatingIds, onStatusChange }: Props) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-      <table className="min-w-full text-left text-sm">
-        <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-          <tr>
-            <th className="px-4 py-3 font-medium">Name</th>
-            <th className="px-4 py-3 font-medium">Email</th>
-            <th className="px-4 py-3 font-medium">Phone</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium">Created</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {leads.map((lead) => (
-            <tr key={lead.id} className="hover:bg-slate-50">
-              <td className="whitespace-nowrap px-4 py-3 font-medium">{lead.name}</td>
-              <td className="whitespace-nowrap px-4 py-3 text-slate-600">{lead.email}</td>
-              <td className="whitespace-nowrap px-4 py-3 text-slate-600">{lead.phone}</td>
-              <td className="px-4 py-3">
-                <select
-                  aria-label={`Status for ${lead.name}`}
-                  value={lead.status}
-                  disabled={updatingIds.has(lead.id)}
-                  onChange={(e) => onStatusChange(lead, e.target.value as LeadStatus)}
-                  className={`rounded-full border px-2 py-1 text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 ${STATUS_STYLES[lead.status]}`}
+    <table className="min-w-full divide-y divide-slate-200">
+      <thead className="bg-slate-50/80">
+        <tr>
+          <th scope="col" className={`${th} pr-2 pl-4 sm:pr-4 sm:pl-6`}>
+            Lead
+          </th>
+          <th scope="col" className={`${th} hidden px-4 md:table-cell`}>
+            Phone
+          </th>
+          <th scope="col" className={`${th} pr-4 pl-2 sm:px-4`}>
+            Status
+          </th>
+          <th scope="col" className={`${th} hidden pr-6 pl-4 sm:table-cell`}>
+            Created
+          </th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100 bg-white">
+        {leads.map((lead) => (
+          <tr key={lead.id} className="transition-colors hover:bg-slate-50/70">
+            {/* w-full + max-w-0 lets this column absorb spare width and truncate on narrow screens */}
+            <td className="w-full max-w-0 py-3 pr-2 pl-4 sm:pr-4 sm:pl-6">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${avatarColor(lead.name)}`}
+                  aria-hidden="true"
                 >
-                  {LEAD_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {STATUS_LABELS[s]}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="whitespace-nowrap px-4 py-3 text-slate-500">
-                <time dateTime={lead.createdAt}>{dateFormat.format(new Date(lead.createdAt))}</time>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  {initials(lead.name)}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-900">{lead.name}</p>
+                  <p className="truncate text-sm text-slate-500">{lead.email}</p>
+                  <p className="truncate text-xs text-slate-500 md:hidden">{lead.phone}</p>
+                </div>
+              </div>
+            </td>
+            <td className="hidden px-4 py-3 text-sm whitespace-nowrap text-slate-600 tabular-nums md:table-cell">
+              {lead.phone}
+            </td>
+            <td className="py-3 pr-4 pl-2 sm:px-4">
+              <StatusSelect
+                lead={lead}
+                disabled={updatingIds.has(lead.id)}
+                onChange={(s) => onStatusChange(lead, s)}
+              />
+            </td>
+            <td className="hidden py-3 pr-6 pl-4 text-sm whitespace-nowrap text-slate-500 sm:table-cell">
+              <time dateTime={lead.createdAt} title={formatDateTime(lead.createdAt)}>
+                {timeAgo(lead.createdAt)}
+              </time>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function StatusSelect({
+  lead,
+  disabled,
+  onChange,
+}: {
+  lead: Lead
+  disabled: boolean
+  onChange: (status: LeadStatus) => void
+}) {
+  const meta = STATUS_META[lead.status]
+  return (
+    <div className="relative inline-flex items-center">
+      <span className={`pointer-events-none absolute left-2.5 size-1.5 rounded-full ${meta.dot}`} aria-hidden="true" />
+      <select
+        aria-label={`Status for ${lead.name}`}
+        value={lead.status}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value as LeadStatus)}
+        className={`cursor-pointer appearance-none rounded-full border-0 py-1 pr-3 pl-6 text-xs font-medium ring-1 ring-inset focus:ring-2 focus:ring-indigo-600 focus:outline-none disabled:cursor-wait disabled:opacity-60 ${meta.pill}`}
+      >
+        {LEAD_STATUSES.map((s) => (
+          <option key={s} value={s}>
+            {STATUS_LABELS[s]}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+export function LeadTableSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="divide-y divide-slate-100" aria-hidden="true">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex animate-pulse items-center gap-3 px-6 py-4">
+          <div className="size-9 rounded-full bg-slate-100" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 w-40 rounded bg-slate-100" />
+            <div className="h-3 w-56 rounded bg-slate-100" />
+          </div>
+          <div className="h-6 w-24 rounded-full bg-slate-100" />
+        </div>
+      ))}
     </div>
   )
 }
