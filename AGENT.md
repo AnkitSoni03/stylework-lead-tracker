@@ -30,7 +30,7 @@ The project followed an iterative, human-directed loop:
 
 ## 3. Prompt Log
 
-These are the main prompts, in chronological order. They were originally written conversationally in a mix of Hindi and English; they are given here in English with the original intent kept.
+These are the main prompts, in chronological order. They were given conversationally and are paraphrased and condensed here, with the original intent kept.
 
 | # | Prompt | Outcome |
 |---|---|---|
