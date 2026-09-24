@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { QueryFilter } from "mongoose";
-import { LeadModel, type Lead } from "../models/lead";
+import { LEAD_STATUSES, LeadModel, type Lead, type LeadStatus } from "../models/lead";
 import { createLeadSchema, listLeadsQuerySchema, updateStatusSchema } from "../schemas/lead";
 import { HttpError } from "../middleware/errors";
 
@@ -31,6 +31,19 @@ leadsRouter.get("/", async (req, res) => {
   ]);
 
   res.json({ data, total, page, limit });
+});
+
+// GET /api/leads/stats -> { total, byStatus: { new: n, contacted: n, ... } }
+leadsRouter.get("/stats", async (_req, res) => {
+  const groups = await LeadModel.aggregate<{ _id: LeadStatus; count: number }>([
+    { $group: { _id: "$status", count: { $sum: 1 } } },
+  ]);
+
+  const byStatus = Object.fromEntries(LEAD_STATUSES.map((s) => [s, 0])) as Record<LeadStatus, number>;
+  for (const { _id, count } of groups) byStatus[_id] = count;
+  const total = groups.reduce((sum, g) => sum + g.count, 0);
+
+  res.json({ total, byStatus });
 });
 
 // POST /api/leads

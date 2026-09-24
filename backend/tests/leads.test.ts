@@ -141,6 +141,28 @@ describe("GET /api/leads", () => {
   });
 });
 
+describe("GET /api/leads/stats", () => {
+  it("returns zero counts for every status when empty", async () => {
+    const res = await request(app).get("/api/leads/stats");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      total: 0,
+      byStatus: { new: 0, contacted: 0, qualified: 0, converted: 0, lost: 0 },
+    });
+  });
+
+  it("counts leads per status", async () => {
+    await createLead({ email: "a@example.com" });
+    await createLead({ email: "b@example.com" });
+    const lead = await createLead({ email: "c@example.com" });
+    await request(app).patch(`/api/leads/${lead.id}/status`).send({ status: "converted" });
+
+    const res = await request(app).get("/api/leads/stats");
+    expect(res.body.total).toBe(3);
+    expect(res.body.byStatus).toMatchObject({ new: 2, converted: 1, lost: 0 });
+  });
+});
+
 describe("PATCH /api/leads/:id/status", () => {
   it("updates the status", async () => {
     const lead = await createLead();
