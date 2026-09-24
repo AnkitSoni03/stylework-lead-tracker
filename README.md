@@ -5,7 +5,11 @@ A small full-stack app to capture sales leads and move them through a pipeline.
 - **Live app:** https://stylework-lead-tracker.vercel.app
 - **API:** https://stylework-lead-tracker-api.onrender.com/api/health (free tier: the first request after inactivity can take ~50s while the server wakes up)
 
-**Features:** create a lead · list leads (newest first, paginated) · search by name / email / phone · filter by status · update a lead's status inline.
+[![CI](https://github.com/AnkitSoni03/stylework-lead-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/AnkitSoni03/stylework-lead-tracker/actions/workflows/ci.yml)
+
+**Features:** create a lead · list leads (newest first, paginated) · search by name / email / phone · filter by status · update a lead's status inline · pipeline summary with per-status counts.
+
+**UI:** a dashboard with clickable status cards, an add-lead modal, status pills, relative dates, skeleton loading, toast confirmations and a responsive layout that works down to phone width.
 
 Each lead has **Name, Email, Phone, Status, Created At**. Status is one of `new`, `contacted`, `qualified`, `converted`, `lost`.
 
@@ -41,6 +45,7 @@ The repo is a simple monorepo with two independent packages. Each one has its ow
 |---|---|---|
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/leads?search=&status=&page=1&limit=20` | List leads, newest first. `search` does a case-insensitive match on name, email or phone |
+| `GET` | `/api/leads/stats` | Pipeline counts: `{ total, byStatus: { new, contacted, qualified, converted, lost } }` |
 | `POST` | `/api/leads` | Create a lead. Body: `{ name, email, phone, status? }` |
 | `PATCH` | `/api/leads/:id/status` | Update status. Body: `{ status }` |
 
@@ -59,7 +64,8 @@ Error response shape: `{ error: string, details?: { field, message }[] }`.
 |---|---|
 | `src/api.ts` | Typed `fetch` client. Turns failures into `ApiError`, including field-level details |
 | `src/App.tsx` | Page state: query, pagination, loading/error, optimistic status updates |
-| `src/components/` | `LeadForm`, `LeadFilters`, `LeadTable`, `Pagination` |
+| `src/components/` | `StatsCards`, `LeadFilters`, `LeadTable`, `LeadForm` (inside `Modal`), `Pagination`, `Toasts` |
+| `src/lib/` | Status colours, relative-date and avatar formatting helpers |
 | `src/validation.ts` | Client-side validation that mirrors the backend rules |
 | `src/hooks/useDebouncedValue.ts` | Debounces search input (300 ms) |
 
@@ -104,13 +110,15 @@ npm run dev               # http://localhost:5173
 ### Tests
 
 ```bash
-cd backend  && npm test   # 18 API integration tests (Vitest + Supertest + in-memory MongoDB)
-cd frontend && npm test   # 14 component/integration tests (Vitest + React Testing Library)
+cd backend  && npm test   # 20 API integration tests (Vitest + Supertest + in-memory MongoDB)
+cd frontend && npm test   # 19 component/integration/unit tests (Vitest + React Testing Library)
 ```
 
 Backend tests use `mongodb-memory-server`, so they never touch a real database. The first run downloads a MongoDB binary. Frontend tests stub `fetch`, so they don't need the backend running.
 
 Other checks: `npm run typecheck` (both packages), `npm run lint` (frontend), `npm run build` (both).
+
+**CI:** GitHub Actions (`.github/workflows/ci.yml`) runs all of these for both packages on every push to `main` and on every pull request.
 
 ---
 
@@ -161,7 +169,7 @@ After both are up, set the Render `CORS_ORIGIN` to the final Vercel domain.
 - Cursor pagination, sortable columns, and CSV import/export
 - React Query for caching, retries and background refetching
 - A shared API contract, e.g. generating the client from an OpenAPI spec
-- End-to-end tests (Playwright) and a GitHub Actions CI pipeline running lint, typecheck and tests on every PR
+- End-to-end tests (Playwright) running in CI against a preview deployment
 - Rate limiting, request logging and error monitoring (e.g. Sentry)
 
 ---
