@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { leadsRouter } from "./routes/leads";
 import { errorHandler, notFound } from "./middleware/errors";
 
 export interface AppOptions {
@@ -16,6 +17,8 @@ export function createApp({ corsOrigins = [] }: AppOptions = {}) {
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  app.use("/api/leads", leadsRouter);
 
   app.use(notFound);
   app.use(errorHandler);
