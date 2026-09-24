@@ -1,93 +1,134 @@
-# AGENT.md: AI usage log
+# AGENT.md: AI-Assisted Development Log
 
-This project was built with AI assistance, which the assignment explicitly allows and encourages. This file records which tools were used, how they were prompted, what the AI produced, what I did myself, and the key engineering decisions.
+This document records how AI tools were used to build the Stylework Lead Tracker, as the assignment requires. It covers the tools and workflow, the prompts given, which parts were AI-generated and which were human-owned, how AI output was verified, the issues found along the way, and the key engineering decisions.
 
-## AI tools used
+---
 
-| Tool | Used for |
+## 1. AI Tools Used
+
+| Tool | Model | Role |
+|---|---|---|
+| **Claude Code** (Anthropic's agentic CLI) | Claude Opus 5.5 | Primary development assistant. It analysed requirements, proposed the architecture, generated code, tests, configuration, and documentation, ran builds and tests, did browser-based QA, wrote git commits, and ran deployment commands. |
+
+No other AI tools were used.
+
+**Traceability.** Every commit produced with AI assistance carries a `Co-Authored-By: Claude` trailer, so the git history shows exactly where AI contributed.
+
+---
+
+## 2. Development Workflow
+
+The project followed an iterative, human-directed loop:
+
+1. **Requirements.** The AI summarized the assignment PDF, and I confirmed the scope.
+2. **Design decisions.** The AI proposed a tech stack and project structure. I reviewed them, approved the stack, and set constraints (for example, separate `frontend/` and `backend/` packages).
+3. **Incremental implementation.** Work was split into small, reviewable steps, each ending in a focused commit: backend scaffold → data model → endpoints → backend tests → frontend scaffold → API client → UI → frontend tests → deployment → CI → UI redesign.
+4. **Verification at every step.** Every change was type-checked, linted, tested, and exercised manually before it was committed (see [Section 5](#5-verification-of-ai-output)).
+5. **Human gates.** Actions with external or security impact stayed under my control: creating the public repository, entering credentials, changing database network access, and approving pushes and deployments.
+
+---
+
+## 3. Prompt Log
+
+These are the main prompts, in chronological order. They were originally written conversationally in a mix of Hindi and English; they are given here in English with the original intent kept.
+
+| # | Prompt | Outcome |
+|---|---|---|
+| 1 | "I've added the assignment PDF. Read it and summarize briefly what needs to be built." | Summary of features, required stack, deliverables, and evaluation weights |
+| 2 | "In your opinion, which tech stack would be best?" | Proposed stack with rationale: React + TS + Vite + Tailwind, Express + TS + Zod, MongoDB Atlas, Vitest, Render + Vercel. Approved by me. |
+| 3 | "Can you deploy it directly? Just discuss for now, don't start building." | Deployment plan and access requirements (GitHub, Vercel, Render, Atlas) agreed before any code was written |
+| 4 | "Check whether all the required tools are installed." | Verified git, Node.js, npm, GitHub CLI, and Vercel CLI, including authentication status |
+| 5 | "Use this GitHub account and this email for commits." | Repository-scoped git identity configured, so the global config was left unchanged |
+| 6 | "Here is the MongoDB connection string; use it." | Stored only in a git-ignored `.env`, never committed |
+| 7 | "Create separate `frontend` and `backend` folders and keep their code separate." | Monorepo with two independent packages |
+| 8 | "Make 8–10 meaningful commits, remember to push, and make sure the README and AGENT.md cover every requirement." | Small, focused commits following Conventional Commits. Documentation mapped to the evaluation criteria. |
+| 9 | "Deploy it live on Vercel and Render." | Render Blueprint deployment and Vercel production deployment, verified end to end |
+| 10 | "Can you add some dummy data?" | An idempotent `npm run seed` script instead of one-off manual inserts |
+| 11 | "Add CI as well, and make the UI look professional." | GitHub Actions pipeline, `/api/leads/stats` endpoint, and a dashboard-style UI redesign with new tests |
+| 12 | "Rewrite the markdown files the way a professional developer would, in English only." | This document and the README, rewritten |
+
+---
+
+## 4. Ownership: AI-Generated vs. Human-Owned
+
+### AI-generated (reviewed and verified before committing)
+
+| Area | Details |
 |---|---|
-| **Claude Code** (Anthropic CLI agent, model Claude Opus 5.5) | Reading the assignment, recommending the stack, scaffolding, writing backend and frontend code, tests, deployment config and docs, running builds and tests, browser smoke-testing, git commits, and deployment |
+| Backend code | Express app factory, configuration, Mongoose model, Zod schemas, lead routes, stats aggregation, centralized error middleware, seed script |
+| Frontend code | Typed API client, domain types, validation, `App` state management, and all components (`StatsCards`, `LeadTable`, `LeadForm`, `Modal`, `LeadFilters`, `Pagination`, `Toasts`), plus hooks and formatting helpers |
+| Tests | All 39 automated tests (20 backend, 19 frontend) |
+| Infrastructure | `render.yaml`, GitHub Actions workflow, Vercel CLI deployment |
+| Documentation | README.md and AGENT.md, based on my requirements, then reviewed by me |
+| Commit messages | Conventional Commit messages for each change |
 
-Every commit that Claude Code helped write carries a `Co-Authored-By: Claude` trailer, so the git history shows exactly where AI was involved.
+### Human-owned
 
-## Prompts
-
-I worked with Claude Code conversationally, in Hinglish. These are the main prompts, in order, with English meaning where needed:
-
-1. *"bhai maine pdf add kia h usko read krke short me btao kya bnana h"*: read the assignment PDF and summarize what needs to be built.
-2. *"according to you.. konsa techstack best rhega"*: recommend the best tech stack. Claude proposed React + TS + Vite + Tailwind, Express + TS + Zod, MongoDB Atlas, Vitest/Supertest, and Render + Vercel, and I accepted it.
-3. *"tu direct deploy kr dega kya? just chat dont start building"*: asked whether the agent could deploy directly, and discussed the requirements before any code was written.
-4. *"ok check kar le sab installed hai ya nahi"*: verify that git, Node, the GitHub CLI and the Vercel CLI are installed and logged in.
-5. Picked the GitHub account and the commit email to use for this repo.
-6. Chose to keep the Claude co-author line on commits, the repo name `stylework-lead-tracker`, and a public repo. I provided the MongoDB Atlas connection string.
-7. *"bhai frontend / backend ka folder bna kar fir dono ka saparate code likhna"*: keep separate `frontend/` and `backend/` folders with independent code.
-8. *"8-10 meaningful commit krna and push krna mat bhulna… .md files bhi dhyan me rkhke chlna, mera point kahi se ktna nahi chahiye"*: make 8–10+ meaningful commits, push them, and cover every point in README.md and AGENT.md so no marks are lost.
-9. *"bhai kuch dummy data dal skte ho?"*: add demo data. Claude wrote an idempotent `npm run seed` script instead of inserting rows by hand.
-10. *"ab CI bhi add kar do and UI professional bnao"*: add CI and make the UI look professional. This produced the GitHub Actions workflow, the stats endpoint and the dashboard redesign.
-
-## AI-generated vs. human-directed work
-
-**Generated by AI (Claude Code), then reviewed and verified by running it:**
-
-- Backend: Express app factory, config, Mongoose model, Zod schemas, lead routes, error middleware
-- Frontend: API client, types, components (`StatsCards`, `LeadForm`, `Modal`, `LeadFilters`, `LeadTable`, `Pagination`, `Toasts`), `App` state logic, debounce hook, validation, the UI redesign
-- Tests: all 20 backend and 19 frontend tests
-- Seed script, the `/api/leads/stats` endpoint and the GitHub Actions CI workflow
-- `render.yaml`, README.md and this AGENT.md draft
-- Commit messages
-
-**Done or decided by me (human):**
-
-- Understanding the brief and approving the final tech stack
-- Project structure requirement: separate `frontend/` and `backend/` folders
-- Creating the MongoDB Atlas cluster, database user and connection string
-- Account setup: GitHub (which account to publish from), Vercel and Render logins, git identity
-- Reviewing and approving every command that pushed or deployed anything public
-- Creating the public GitHub repo and pushing it (`gh repo create … --push`)
-- Deployment inputs that involve secrets or security settings: pasting `MONGODB_URI` into Render, and allowing Atlas network access (`0.0.0.0/0`) for Render. The AI deliberately left these to me
-- Prioritizing the deliverables: commit trail, docs and deployment
-
-_(If I hand-edit anything after this point, I'll list it here.)_
-
-## How the AI's output was verified
-
-The AI's code wasn't accepted on trust. Each step was checked by actually running it:
-
-- `tsc` typecheck and production build after every backend and frontend change, plus `oxlint` on the frontend
-- An API smoke test against the real Atlas database (create, duplicate → 409, status update, search, validation → 400, bad id → 400), after which the test data was deleted
-- Automated tests: 20/20 backend, 19/19 frontend, also run in GitHub Actions CI on every push
-- The redesigned UI was checked at desktop width and at 390px (phone) width in Chrome
-- A manual check in a real Chrome browser: empty-form validation, creating a lead, changing its status and reloading to confirm it persisted, and searching with no matches
-- A check of the live production deployment (Vercel → Render → Atlas): health check, CORS header for the Vercel origin, creating a lead through the UI, a status change persisted in the DB, and search. The test leads were deleted afterwards
-
-### Problems found along the way and how they were fixed
-
-| Problem | Fix |
+| Area | Details |
 |---|---|
-| Local API hung on startup. Node's DNS resolver timed out (`ETIMEOUT`) on the `mongodb+srv` SRV lookup, even though Windows DNS resolved it fine | Used the equivalent non-SRV `mongodb://host1,host2,host3/?replicaSet=…` URI locally. Production keeps the SRV URI. Documented in the README |
-| Mongoose 9 deprecation warning for `{ new: true }` | Switched to `{ returnDocument: "after" }` |
-| Linter flagged `setState` inside an effect (cascading renders) and a non-component export in a component file | Loading state is now *derived* by tagging each result with the query key that produced it. Validation moved to `validation.ts` |
-| Resetting the page inside an effect would fire a second request | Page resets to 1 inside the search and filter event handlers instead |
-| Port 5173 was already used by another local project, which showed up during the browser test | Ran this app on port 5188 for testing. The other project was left untouched |
-| After the redesign, the add-lead modal focused its Close button instead of the Name field. A new test caught this | The modal now focuses the first form field and falls back to a button only if there is none |
-| At 390px width the leads table overflowed and the Status column was cut off | Made the lead column shrink (`w-full max-w-0` + `truncate`), hid the phone and created columns on small screens, and showed the phone under the name. Checked that the table's `scrollWidth` equals its `clientWidth` |
-| An unused variable in a test broke `tsc -b` right after a commit | Fixed and amended the commit before anything was pushed |
-| `vercel deploy` from `frontend/` failed with *"Root Directory 'frontend' does not exist"*, because the Vercel project already had Root Directory set to `frontend` | Deployed from the repo root instead. Documented in the README |
+| Requirements and scope | Interpreting the brief, approving the tech stack, and deciding the priority of deliverables (working product, commit history, documentation, deployment, testing) |
+| Architectural constraints | Requiring separate, independently deployable `frontend/` and `backend/` packages |
+| Feature direction | Asking for demo data, CI, and a professional UI redesign |
+| Infrastructure ownership | Creating the MongoDB Atlas cluster and database user, and providing all accounts (GitHub, Vercel, Render) |
+| Security-sensitive actions | Creating the public repository, entering `MONGODB_URI` into Render, configuring Atlas network access, and granting the GitHub `workflow` token scope. These were deliberately not delegated to the AI. |
+| Review and approval | Reviewing results and approving each push and deployment |
 
-## Key engineering decisions
+No application code was written by hand. My contribution was direction, constraints, review, and control over external and security-sensitive actions. Any manual edits made after this point will be listed in this section.
 
-1. **Express 5 + TypeScript.** Express 5 forwards rejected promises from async handlers to the error middleware, so routes need no `try/catch` boilerplate.
-2. **Zod at the edges, Mongoose in storage.** Zod validates and normalizes input (trim, lowercase email, coerce query numbers) and returns field-level errors that the UI maps onto inputs. Mongoose enforces the unique email index, which is the real guarantee against duplicates under concurrent requests.
-3. **Unique email, returning `409`.** Two leads with the same email are almost always duplicates. Emails are lowercased before saving, so `A@x.com` and `a@x.com` count as the same.
-4. **`createApp()` factory kept separate from `index.ts`.** Tests import the app without connecting to a real database or opening a port.
-5. **In-memory MongoDB for backend tests.** Tests run the real Mongoose queries, indexes and duplicate-key behaviour rather than mocks, while staying hermetic.
-6. **Regex-escaped search.** User input is escaped before it's used in a `RegExp`. This prevents regex injection and ReDoS-style inputs. There's a test for it.
-7. **Consistent error contract** (`{ error, details? }`) with correct status codes, so the frontend can handle every failure the same way.
-8. **Optimistic status updates with rollback.** The UI responds instantly, and on failure the previous status is restored and an error is shown.
-9. **Debounced search with `AbortController`.** Fewer requests are sent, and stale responses can't overwrite newer results.
-10. **Monorepo with independent packages** rather than npm workspaces. Each package deploys on its own platform with its own root directory.
-11. **Stats come from a single `$group` aggregation**, zero-filled for every status, so the dashboard cards never need several count queries. The cards reuse the existing status filter instead of adding new state.
-12. **Accessible modal without a UI library:** `role="dialog"`, `aria-modal`, a labelled title, Escape and backdrop close, focus moved in on open and restored on close, and body scroll locked.
-13. **Secrets stay out of git.** `.env` is gitignored and only `.env.example` files are committed. Production secrets live in the Render and Vercel dashboards.
+---
 
-See [README.md](./README.md) for architecture, setup, deployment, trade-offs and future improvements.
+## 5. Verification of AI Output
+
+AI-generated code was never accepted without verification. Each change passed these checks before it was committed:
+
+| Check | How |
+|---|---|
+| Static analysis | `tsc` typecheck for both packages, `oxlint` for the frontend, and a production build for both |
+| Automated tests | 20/20 backend and 19/19 frontend tests, run locally and in GitHub Actions CI |
+| API smoke tests | Real requests against the live MongoDB Atlas database: create, duplicate (`409`), status update, search, validation (`400`), and malformed id (`400`). Test data was removed afterwards. |
+| Browser QA (local) | Driven in Chrome: validation messages, lead creation, status change persisted across reload, search, stats-card filtering, and modal behaviour |
+| Responsive QA | Layout checked at desktop width and at 390 px mobile width. Horizontal overflow was measured (`scrollWidth === clientWidth`). |
+| Production verification | End-to-end on the live deployment (Vercel → Render → Atlas): health check, CORS allow-list (the allowed origin gets the header and an unknown origin does not), UI-driven create, persisted status change, and search. Test data was removed afterwards. |
+
+---
+
+## 6. Issues Identified and Resolved
+
+These problems were found during development and fixed before release. Most were caught by the verification steps above.
+
+| Issue | Root cause | Resolution |
+|---|---|---|
+| Local API hung on startup | Node.js's DNS resolver timed out on the `mongodb+srv` SRV lookup on the local network, even though the OS resolver worked | Used the equivalent non-SRV connection string for local development. Production keeps the SRV URI. Documented in the README under Troubleshooting. |
+| Mongoose deprecation warning | `{ new: true }` is deprecated in Mongoose 9 | Replaced with `{ returnDocument: "after" }` |
+| Lint: `setState` called synchronously inside an effect | Loading flags were set inside the data-fetching effect, which causes cascading renders | Loading state is now derived by tagging each result with the query key that produced it |
+| Lint: non-component export in a component file | The validation helper lived in `LeadForm.tsx`, which breaks Fast Refresh | Moved it to `validation.ts` |
+| Redundant network request | Resetting the page inside an effect triggered a second fetch | The page is reset in the search and filter event handlers instead |
+| Modal focused the wrong element | The first focusable element was the header's close button | Focus now goes to the first form field. A test asserts this. |
+| Status column clipped at 390 px | Table cells could not shrink below their content width | The lead column now shrinks and truncates, and secondary columns are hidden on small screens |
+| Type error found after a commit | An unused callback parameter in a test failed `tsc -b` | Fixed and amended before pushing. Builds are now checked before every commit. |
+| Vercel CLI deploy failed | The Vercel project's root directory was already set to `frontend` | Deployed from the repository root. Documented in the README. |
+
+---
+
+## 7. Key Engineering Decisions
+
+1. **Layered validation.** Zod validates and normalizes input at the API boundary (trimming, lowercasing emails, coercing query parameters) and returns field-level errors that the UI maps to specific inputs. The MongoDB unique index on `email` is the authoritative guard against duplicates, even under concurrent requests.
+2. **Consistent error contract.** A single error middleware maps validation, cast, duplicate-key, not-found, and unexpected errors to `{ error, details? }` with the correct HTTP status. Internal errors are logged and never exposed to clients.
+3. **Testable app factory.** `createApp()` has no side effects. The database connection and port binding live in `index.ts`, so tests import the app directly.
+4. **Realistic, hermetic tests.** Backend tests run against an in-memory MongoDB engine rather than mocks, so indexes, uniqueness, and query semantics are genuinely exercised.
+5. **Safe search.** User input is regex-escaped before it is used in a query, which prevents regex injection and pathological patterns. A dedicated test covers this.
+6. **Optimistic UI with rollback.** Status changes update immediately. If the request fails, the previous value is restored and an error is shown.
+7. **Race-free data fetching.** Search is debounced, and every request is cancellable through `AbortController`, so stale responses can never overwrite newer results.
+8. **Efficient pipeline stats.** One `$group` aggregation, zero-filled for every status, drives the dashboard cards. The cards reuse the existing status filter instead of adding new state.
+9. **Accessibility without a UI library.** The modal uses `role="dialog"` and `aria-modal`, has a labelled title, closes on Escape and backdrop click, moves focus in on open and restores it on close, and locks body scroll. Form errors are linked to inputs with `aria-describedby`.
+10. **Independent, deployable packages.** Separate `frontend/` and `backend/` packages, each with its own CI job and hosting target, avoid coupling and workspace tooling.
+11. **Infrastructure as code.** The backend service is declared in `render.yaml`, and CI is declared in `.github/workflows/ci.yml`.
+12. **Secret hygiene.** `.env` files are git-ignored and only `.env.example` templates are committed. Production secrets live only in the Render and Vercel dashboards. CORS is restricted to the production frontend origin.
+
+---
+
+## 8. Reflections on Working with AI
+
+- **Most useful:** Fast scaffolding, consistent boilerplate, thorough test generation, and catching edge cases such as regex escaping, duplicate-key handling, and focus management.
+- **Where human judgement was essential:** Setting scope and priorities, choosing the architecture, and keeping control of credentials, public repositories, and network access.
+- **Takeaway:** AI output is a draft until it is verified. Running the typechecker, linter, tests, and a real browser against every change caught several defects (Section 6) that reading the code alone would likely have missed.

@@ -1,177 +1,376 @@
 # Stylework Lead Tracker
 
-A small full-stack app to capture sales leads and move them through a pipeline.
-
-- **Live app:** https://stylework-lead-tracker.vercel.app
-- **API:** https://stylework-lead-tracker-api.onrender.com/api/health (free tier: the first request after inactivity can take ~50s while the server wakes up)
-
 [![CI](https://github.com/AnkitSoni03/stylework-lead-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/AnkitSoni03/stylework-lead-tracker/actions/workflows/ci.yml)
 
-**Features:** create a lead · list leads (newest first, paginated) · search by name / email / phone · filter by status · update a lead's status inline · pipeline summary with per-status counts.
+A full-stack lead management application for capturing sales leads and tracking them through a pipeline. Built with **React + TypeScript**, **Node.js + Express**, and **MongoDB**.
 
-**UI:** a dashboard with clickable status cards, an add-lead modal, status pills, relative dates, skeleton loading, toast confirmations and a responsive layout that works down to phone width.
+| | |
+|---|---|
+| **Live application** | https://stylework-lead-tracker.vercel.app |
+| **API base URL** | https://stylework-lead-tracker-api.onrender.com |
+| **Health check** | https://stylework-lead-tracker-api.onrender.com/api/health |
 
-Each lead has **Name, Email, Phone, Status, Created At**. Status is one of `new`, `contacted`, `qualified`, `converted`, `lost`.
+> **Note:** The API runs on Render's free tier, which spins down after ~15 minutes of inactivity. The first request after an idle period may take up to ~50 seconds; subsequent requests are fast.
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [API Reference](#api-reference)
+- [Getting Started](#getting-started)
+- [Testing](#testing)
+- [Continuous Integration](#continuous-integration)
+- [Deployment](#deployment)
+- [Trade-offs](#trade-offs)
+- [Future Improvements](#future-improvements)
+- [AI Usage](#ai-usage)
+
+---
+
+## Features
+
+### Core requirements
+
+| Requirement | Implementation |
+|---|---|
+| **Create lead** | Modal form with client-side validation, server-side validation, and field-level error messages. Duplicate emails are rejected with `409 Conflict`. |
+| **Update lead status** | Inline status dropdown on each row. Updates are applied optimistically and rolled back automatically if the request fails. |
+| **Search leads** | Debounced (300 ms), case-insensitive search across name, email, and phone. |
+| **List leads** | Sorted newest first, paginated (10 per page), with loading, empty, and error states. |
+
+**Lead fields:** Name, Email, Phone, Status, Created At.
+**Statuses:** `new` → `contacted` → `qualified` → `converted` / `lost`.
+
+### Additional features
+
+- **Pipeline dashboard.** Summary cards show the lead count for each status and double as one-click filters.
+- **Status filter** that combines with search.
+- **Accessible UI.** Labelled form controls, keyboard support (Escape closes the modal), focus management, and ARIA live regions for notifications.
+- **Responsive layout** from desktop down to 390 px mobile. On small screens the modal becomes a bottom sheet.
+- **Toast notifications** confirm create and update actions.
+- **Seed script** (`npm run seed`) for demo data. It is idempotent and safe to re-run.
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Why |
+|---|---|---|
+| Frontend | React 19, TypeScript, Vite | Required by the brief. Vite gives fast dev startup and optimized builds. |
+| Styling | Tailwind CSS v4, lucide-react icons | Consistent design without writing or maintaining custom CSS. |
+| Backend | Node.js, Express 5, TypeScript | Same language across the stack. Express 5 forwards async errors to the error middleware natively. |
+| Validation | Zod | One declarative schema per request gives both runtime validation and static TypeScript types. |
+| Database | MongoDB Atlas, Mongoose 9 | Leads are a single flat entity, which fits a document model. Managed free tier. |
+| Testing | Vitest, Supertest, mongodb-memory-server, React Testing Library | Fast, hermetic tests with a real database engine and no external dependencies. |
+| CI | GitHub Actions | Lint, typecheck, test, and build on every push and pull request. |
+| Hosting | Vercel (frontend), Render (backend) | Free tiers with Git-based deployments. |
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────────────────┐   HTTPS / JSON   ┌───────────────────────────┐   Mongoose   ┌──────────────────┐
-│  frontend/ (Vercel)      │ ───────────────▶ │  backend/ (Render)        │ ───────────▶ │  MongoDB Atlas   │
-│  React 19 + TypeScript   │                  │  Node + Express 5 + TS    │              │  leads collection│
-│  Vite, Tailwind CSS      │ ◀─────────────── │  Zod validation           │ ◀─────────── │                  │
-└──────────────────────────┘                  └───────────────────────────┘              └──────────────────┘
+┌──────────────────────────┐   HTTPS / JSON    ┌───────────────────────────┐   Mongoose   ┌───────────────────┐
+│  Frontend  (Vercel)      │ ────────────────▶ │  Backend API  (Render)    │ ───────────▶ │  MongoDB Atlas    │
+│  React 19 + TypeScript   │                   │  Express 5 + TypeScript   │              │  `leads`          │
+│  Vite · Tailwind CSS     │ ◀──────────────── │  Zod validation           │ ◀─────────── │  collection       │
+└──────────────────────────┘                   └───────────────────────────┘              └───────────────────┘
 ```
 
-The repo is a simple monorepo with two independent packages. Each one has its own `package.json`, dependencies and tests.
+The repository is a monorepo with two **independent packages**, `frontend/` and `backend/`. Each has its own dependencies, scripts, tests, and deployment target. They share only the HTTP contract documented in the [API reference](#api-reference).
 
-### Backend (`backend/`)
+**Request flow:**
 
-| Path | Responsibility |
-|---|---|
-| `src/index.ts` | Entry point: connects to MongoDB, then starts the HTTP server |
-| `src/app.ts` | `createApp()` factory: CORS, JSON parsing, routes, error handling. Has no DB side effects, so tests can import it directly |
-| `src/config.ts` | Reads and validates environment variables |
-| `src/models/lead.ts` | Mongoose schema: unique email, status enum, `timestamps` for `createdAt`, indexes |
-| `src/schemas/lead.ts` | Zod schemas for request bodies and query params |
-| `src/routes/leads.ts` | Lead endpoints |
-| `src/middleware/errors.ts` | Maps errors to consistent JSON responses (400 / 404 / 409 / 500) |
+1. The frontend calls the REST API through a typed `fetch` client (`src/api.ts`).
+2. Express validates the request with Zod. Invalid input returns `400` with per-field error details.
+3. Mongoose persists to MongoDB. The unique index on `email` is the final guard against duplicates, including under concurrent requests.
+4. A central error middleware maps every failure to a consistent JSON shape and status code.
 
-#### REST API
+---
+
+## Project Structure
+
+```
+stylework-lead-tracker/
+├── .github/workflows/ci.yml     # CI pipeline (backend + frontend jobs)
+├── render.yaml                  # Render Blueprint (backend infrastructure as code)
+├── backend/
+│   ├── src/
+│   │   ├── index.ts             # Entry point: connect to MongoDB, start HTTP server
+│   │   ├── app.ts               # createApp() factory: middleware, routes, error handling
+│   │   ├── config.ts            # Environment variable loading and validation
+│   │   ├── seed.ts              # Idempotent demo-data seeder
+│   │   ├── models/lead.ts       # Mongoose schema, status enum, indexes
+│   │   ├── schemas/lead.ts      # Zod request/query schemas
+│   │   ├── routes/leads.ts      # Lead endpoints
+│   │   └── middleware/errors.ts # Centralized error → HTTP response mapping
+│   └── tests/leads.test.ts      # API integration tests
+└── frontend/
+    └── src/
+        ├── App.tsx              # Page state: query, pagination, optimistic updates
+        ├── api.ts               # Typed API client with ApiError
+        ├── types.ts             # Shared domain types
+        ├── validation.ts        # Client-side validation (mirrors backend rules)
+        ├── components/          # StatsCards, LeadTable, LeadForm, Modal, LeadFilters, Pagination, Toasts
+        ├── hooks/               # useDebouncedValue
+        ├── lib/                 # Formatting and status styling helpers
+        └── test/                # Test setup and utilities
+```
+
+---
+
+## API Reference
+
+Base URL: `https://stylework-lead-tracker-api.onrender.com`
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/health` | Health check |
-| `GET` | `/api/leads?search=&status=&page=1&limit=20` | List leads, newest first. `search` does a case-insensitive match on name, email or phone |
-| `GET` | `/api/leads/stats` | Pipeline counts: `{ total, byStatus: { new, contacted, qualified, converted, lost } }` |
-| `POST` | `/api/leads` | Create a lead. Body: `{ name, email, phone, status? }` |
-| `PATCH` | `/api/leads/:id/status` | Update status. Body: `{ status }` |
+| `GET` | `/api/leads` | List leads (search, filter, paginate) |
+| `GET` | `/api/leads/stats` | Lead counts per status |
+| `POST` | `/api/leads` | Create a lead |
+| `PATCH` | `/api/leads/:id/status` | Update a lead's status |
 
-List response shape: `{ data: Lead[], total, page, limit }`.
-Error response shape: `{ error: string, details?: { field, message }[] }`.
+### `GET /api/leads`
 
-| Status | When |
+| Query param | Type | Default | Description |
+|---|---|---|---|
+| `search` | string | — | Case-insensitive match on name, email, or phone |
+| `status` | enum | — | One of `new`, `contacted`, `qualified`, `converted`, `lost` |
+| `page` | integer ≥ 1 | `1` | Page number |
+| `limit` | integer 1–100 | `20` | Page size |
+
+```bash
+curl "https://stylework-lead-tracker-api.onrender.com/api/leads?search=sharma&status=new&limit=5"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "6ab5...",
+      "name": "Aarav Sharma",
+      "email": "aarav.sharma@example.com",
+      "phone": "+91 98100 11001",
+      "status": "new",
+      "createdAt": "2026-09-24T19:30:00.000Z",
+      "updatedAt": "2026-09-24T19:30:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 5
+}
+```
+
+### `POST /api/leads`
+
+```bash
+curl -X POST https://stylework-lead-tracker-api.onrender.com/api/leads \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Priya Sharma","email":"priya@example.com","phone":"+91 98765 43210"}'
+```
+
+Returns `201 Created` with the new lead. `status` is optional and defaults to `new`. Emails are trimmed and lowercased before storage.
+
+### `PATCH /api/leads/:id/status`
+
+```bash
+curl -X PATCH https://stylework-lead-tracker-api.onrender.com/api/leads/<id>/status \
+  -H "Content-Type: application/json" \
+  -d '{"status":"qualified"}'
+```
+
+### `GET /api/leads/stats`
+
+```json
+{ "total": 12, "byStatus": { "new": 3, "contacted": 3, "qualified": 2, "converted": 2, "lost": 2 } }
+```
+
+### Errors
+
+All errors use this shape:
+
+```json
+{ "error": "Validation failed", "details": [{ "field": "email", "message": "Invalid email address" }] }
+```
+
+| Status | Meaning |
 |---|---|
-| `400` | Validation failed, malformed JSON or an invalid id |
-| `404` | Lead or route not found |
-| `409` | A lead with that email already exists |
-
-### Frontend (`frontend/`)
-
-| Path | Responsibility |
-|---|---|
-| `src/api.ts` | Typed `fetch` client. Turns failures into `ApiError`, including field-level details |
-| `src/App.tsx` | Page state: query, pagination, loading/error, optimistic status updates |
-| `src/components/` | `StatsCards`, `LeadFilters`, `LeadTable`, `LeadForm` (inside `Modal`), `Pagination`, `Toasts` |
-| `src/lib/` | Status colours, relative-date and avatar formatting helpers |
-| `src/validation.ts` | Client-side validation that mirrors the backend rules |
-| `src/hooks/useDebouncedValue.ts` | Debounces search input (300 ms) |
+| `400 Bad Request` | Validation failure, malformed JSON, or an invalid id |
+| `404 Not Found` | Lead or route does not exist |
+| `409 Conflict` | A lead with this email already exists |
+| `500 Internal Server Error` | Unexpected error (logged server-side; details are not exposed) |
 
 ---
 
-## Local setup
+## Getting Started
 
-**Prerequisites:** Node.js 20+ and a MongoDB connection string (a free MongoDB Atlas cluster, or a local `mongod`).
+### Prerequisites
+
+- Node.js **20+** and npm
+- A MongoDB connection string: a free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster or a local `mongod`
+
+### 1. Clone
 
 ```bash
 git clone https://github.com/AnkitSoni03/stylework-lead-tracker.git
 cd stylework-lead-tracker
 ```
 
-### 1. Backend
+### 2. Backend
 
 ```bash
 cd backend
-cp .env.example .env      # then set MONGODB_URI
+cp .env.example .env    # set MONGODB_URI
 npm install
-npm run dev               # http://localhost:4000
-npm run seed              # optional: insert 12 demo leads (safe to re-run)
+npm run dev             # http://localhost:4000
+npm run seed            # optional: insert 12 demo leads
+```
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `MONGODB_URI` | Yes | — | MongoDB connection string |
+| `PORT` | No | `4000` | HTTP port |
+| `CORS_ORIGIN` | No | *(allow all)* | Comma-separated list of allowed frontend origins |
+
+### 3. Frontend
+
+```bash
+cd frontend
+cp .env.example .env    # VITE_API_URL=http://localhost:4000
+npm install
+npm run dev             # http://localhost:5173
 ```
 
 | Variable | Description |
 |---|---|
-| `MONGODB_URI` | MongoDB connection string (required) |
-| `PORT` | Port to listen on (default `4000`) |
-| `CORS_ORIGIN` | Comma-separated list of allowed frontend origins. If empty, any origin is allowed |
+| `VITE_API_URL` | Backend base URL, with no trailing slash. Baked in at build time. |
 
-> **Tip:** If `mongodb+srv://` connections hang locally with a DNS `ETIMEOUT`, your network's DNS is blocking SRV lookups from Node. Use the standard `mongodb://host1,host2,host3/...?replicaSet=...` connection string from Atlas instead. Atlas shows it under *Connect → Drivers* for older driver versions.
+### Available scripts
 
-### 2. Frontend
+| Package | Script | Purpose |
+|---|---|---|
+| backend | `dev` / `build` / `start` | Watch mode / compile to `dist/` / run the compiled server |
+| backend | `test` / `typecheck` / `seed` | Tests / `tsc --noEmit` / insert demo data |
+| frontend | `dev` / `build` / `preview` | Dev server / production build / preview the build |
+| frontend | `test` / `typecheck` / `lint` | Tests / `tsc -b` / oxlint |
+
+### Troubleshooting
+
+**`mongodb+srv://` connection hangs with `ETIMEOUT` locally.** Some networks block DNS SRV lookups made by Node.js. Use the equivalent standard connection string instead (`mongodb://host1,host2,host3/<db>?replicaSet=...&tls=true&authSource=admin`). Atlas provides it under *Connect → Drivers*.
+
+---
+
+## Testing
+
+**39 automated tests** cover both packages.
 
 ```bash
-cd frontend
-cp .env.example .env      # VITE_API_URL=http://localhost:4000
-npm install
-npm run dev               # http://localhost:5173
+cd backend  && npm test    # 20 tests
+cd frontend && npm test    # 19 tests
 ```
 
-### Tests
+### Backend: API integration tests (Vitest + Supertest)
 
-```bash
-cd backend  && npm test   # 20 API integration tests (Vitest + Supertest + in-memory MongoDB)
-cd frontend && npm test   # 19 component/integration/unit tests (Vitest + React Testing Library)
-```
+These run against a real MongoDB engine in memory (`mongodb-memory-server`), so indexes, the unique email constraint, and query behaviour are exercised exactly as in production, with no external database.
 
-Backend tests use `mongodb-memory-server`, so they never touch a real database. The first run downloads a MongoDB binary. Frontend tests stub `fetch`, so they don't need the backend running.
+| Area | Covered cases |
+|---|---|
+| Create | Defaults (`status: new`, `createdAt`), trimming and email normalization, field-level validation errors, invalid status, duplicate email → `409`, malformed JSON → `400` |
+| List / search | Newest-first ordering, search by name, email, and phone, regex characters treated literally, status filter, pagination, invalid query params |
+| Update status | Successful update, invalid status, missing lead → `404`, malformed id → `400` |
+| Stats | Zero-filled counts, per-status aggregation |
+| Misc | Health check, unknown route → `404` |
 
-Other checks: `npm run typecheck` (both packages), `npm run lint` (frontend), `npm run build` (both).
+### Frontend: component and integration tests (Vitest + React Testing Library)
 
-**CI:** GitHub Actions (`.github/workflows/ci.yml`) runs all of these for both packages on every push to `main` and on every pull request.
+`fetch` is stubbed, so these tests exercise real components and user interactions without a backend.
+
+| Area | Covered cases |
+|---|---|
+| Lead form | Client validation blocks invalid submits, successful submit resets the form, duplicate-email error, server field errors mapped to inputs |
+| App | Loading and listing, empty state, network error, search and filter query params, status update via `PATCH` with toast, optimistic rollback on failure, create-and-refresh flow, stats-card filtering, modal focus and Escape |
+| Utilities | Validation rules, relative time, initials, avatar colours |
+
+---
+
+## Continuous Integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to `main` and on every pull request. It has two parallel jobs:
+
+| Job | Steps |
+|---|---|
+| **Backend** | `npm ci` → typecheck → tests → build |
+| **Frontend** | `npm ci` → lint → typecheck → tests → build |
+
+npm dependencies and the MongoDB test binary are cached between runs.
 
 ---
 
 ## Deployment
 
-### Backend → Render
+The backend and frontend deploy separately.
 
-1. Push the repo to GitHub.
-2. In Render, choose **New → Blueprint** and select the repo. Render reads `render.yaml`, which sets `rootDir: backend`, `npm ci --include=dev && npm run build`, `npm start` and health check `/api/health`.
-3. Set the secret env vars when prompted:
-   - `MONGODB_URI`: the Atlas `mongodb+srv://…` string
-   - `CORS_ORIGIN`: the Vercel URL, e.g. `https://stylework-lead-tracker.vercel.app`
-4. In MongoDB Atlas → *Network Access*, allow Render to connect. On the free tier Render has no static IP, so this means `0.0.0.0/0`.
+### Backend on Render
 
-### Frontend → Vercel
+The service is defined as code in [`render.yaml`](render.yaml): root directory `backend`, build command `npm ci --include=dev && npm run build`, start command `npm start`, and health check path `/api/health`.
 
-1. Import the GitHub repo in Vercel and set **Root Directory** to `frontend`. Vercel auto-detects Vite (build `npm run build`, output `dist`).
-2. Add the env var `VITE_API_URL` set to the Render URL, e.g. `https://stylework-lead-tracker-api.onrender.com`. It is baked into the bundle at build time, so redeploy after changing it.
-3. Deploy. Pushes to `main` redeploy on Render, and on Vercel too once the Git integration is connected.
+1. In the Render dashboard, choose **New → Blueprint** and select this repository.
+2. Provide the secret environment variables:
+   - `MONGODB_URI`: the Atlas connection string
+   - `CORS_ORIGIN`: the frontend origin, `https://stylework-lead-tracker.vercel.app`
+3. In MongoDB Atlas, under **Network Access**, allow connections from Render. Free-tier Render services have no static IP, so this means `0.0.0.0/0`. Access is still protected by database credentials.
+4. Every push to `main` triggers an automatic redeploy.
 
-   Or use the CLI from the **repo root**, since the project's Root Directory is `frontend`:
-   ```bash
-   npx vercel link --project stylework-lead-tracker
-   npx vercel env add VITE_API_URL production
-   npx vercel deploy --prod
-   ```
+### Frontend on Vercel
 
-After both are up, set the Render `CORS_ORIGIN` to the final Vercel domain.
+1. Import the repository into Vercel and set **Root Directory** to `frontend`. The Vite preset is detected automatically (build: `npm run build`, output: `dist`).
+2. Set the environment variable `VITE_API_URL` to `https://stylework-lead-tracker-api.onrender.com`.
+3. Deploy. Because `VITE_API_URL` is embedded at build time, redeploy whenever it changes.
+
+To deploy from the CLI, run these from the **repository root**, since the project's root directory is already set to `frontend`:
+
+```bash
+npx vercel link --project stylework-lead-tracker
+npx vercel env add VITE_API_URL production
+npx vercel deploy --prod
+```
 
 ---
 
 ## Trade-offs
 
-- **MongoDB over PostgreSQL.** Leads are a single flat entity with no relations, so a document store is enough, and Atlas's free tier is quick to provision. The cost is that constraints live in two places, Mongoose and Zod. With Postgres, the schema and migrations would be the single source of truth.
-- **Regex search instead of a text or Atlas Search index.** Case-insensitive substring matching on name, email and phone is simple and supports partial matches such as a phone fragment. It can't use indexes efficiently, though, so it scans the collection. That's fine at this scale but won't hold up at hundreds of thousands of leads.
-- **Offset pagination (`skip`/`limit`).** It's simple and supports "page N of M". Cursor-based pagination would be faster and more stable on large, frequently changing data.
-- **No authentication.** The assignment doesn't require it. As deployed, anyone with the URL can read and create leads. Adding auth would be the first production step.
-- **Types duplicated across frontend and backend** instead of a shared package. This keeps the two deployable packages independent and avoids workspace tooling. The API contract is small and covered by tests on both sides.
-- **Optimistic status updates.** The UI feels instant, and failures roll back with an error message. The trade-off is slightly more client-side state logic.
-- **Free-tier hosting.** Render's free instance sleeps after about 15 minutes of inactivity, so the first request after a pause takes around 30–50 seconds while it wakes up.
-- **No global state library.** A single page with local `useState` doesn't need Redux or React Query.
-
-## Future improvements
-
-- Authentication and per-user or per-team lead ownership
-- Edit and delete leads, plus notes and an activity history per lead
-- MongoDB Atlas Search or a text index for scalable, typo-tolerant search
-- Cursor pagination, sortable columns, and CSV import/export
-- React Query for caching, retries and background refetching
-- A shared API contract, e.g. generating the client from an OpenAPI spec
-- End-to-end tests (Playwright) running in CI against a preview deployment
-- Rate limiting, request logging and error monitoring (e.g. Sentry)
+| Decision | Benefit | Cost |
+|---|---|---|
+| **MongoDB over PostgreSQL** | A single flat entity with no relations fits a document model. Quick, free managed hosting. | Constraints live in both the Mongoose and Zod schemas instead of a single SQL schema with migrations. |
+| **Regex search** instead of a text or Atlas Search index | Supports partial, case-insensitive matches such as a phone fragment. Simple to implement. | Cannot use an index efficiently, so it scans the collection. Fine at this scale, but not for hundreds of thousands of leads. |
+| **Offset pagination** (`skip`/`limit`) | Simple, and supports "page N of M" navigation. | Slower on large collections, and results can shift when data changes between page loads. Cursor-based pagination would scale better. |
+| **No authentication** | Stays within the assignment scope. | Anyone with the URL can read and create leads. This would be the first thing to add for production. |
+| **Types duplicated** across frontend and backend | Packages stay independent, with no workspace tooling. | The contract can drift. This is mitigated by tests on both sides. |
+| **Optimistic status updates** | The UI feels instant. | Needs rollback logic on failure (implemented and tested). |
+| **No global state or data-fetching library** | A single page doesn't need Redux or React Query. Fewer dependencies. | Caching and retries are handled manually. This would be revisited as the app grows. |
+| **Free-tier hosting** | Zero cost. | The backend has a cold start of up to ~50 s after inactivity. |
 
 ---
 
-See [AGENT.md](./AGENT.md) for how AI tools were used to build this project.
+## Future Improvements
+
+- **Authentication and authorization.** User accounts, lead ownership, and team-based access.
+- **Full CRUD.** Edit and delete leads, plus notes and an activity timeline per lead.
+- **Scalable search.** MongoDB Atlas Search for indexed, typo-tolerant full-text search.
+- **Data at scale.** Cursor-based pagination, sortable columns, and CSV import/export.
+- **Frontend data layer.** React Query for caching, background refetching, and retries.
+- **Shared API contract.** An OpenAPI spec with a generated, type-safe client.
+- **End-to-end tests.** Playwright tests running in CI against preview deployments.
+- **Observability and hardening.** Structured logging, error monitoring (e.g. Sentry), rate limiting, and security headers (Helmet).
+
+---
+
+## AI Usage
+
+This project was built with AI assistance, as the assignment encourages. [AGENT.md](AGENT.md) documents the tools and prompts used, which parts were AI-generated and which were human-owned, how the output was verified, and the key engineering decisions.
