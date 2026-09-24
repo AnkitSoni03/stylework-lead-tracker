@@ -81,6 +81,7 @@ cd backend
 cp .env.example .env      # then set MONGODB_URI
 npm install
 npm run dev               # http://localhost:4000
+npm run seed              # optional: insert 12 demo leads (safe to re-run)
 ```
 
 | Variable | Description |
