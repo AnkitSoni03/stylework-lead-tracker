@@ -2,8 +2,8 @@
 
 A small full-stack app to capture sales leads and move them through a pipeline.
 
-- **Live app:** _coming soon_
-- **API:** _coming soon_
+- **Live app:** https://stylework-lead-tracker.vercel.app
+- **API:** https://stylework-lead-tracker-api.onrender.com/api/health (free tier: the first request after inactivity can take ~50s while the server wakes up)
 
 **Features:** create a lead · list leads (newest first, paginated) · search by name / email / phone · filter by status · update a lead's status inline.
 
@@ -127,8 +127,17 @@ Other checks: `npm run typecheck` (both packages), `npm run lint` (frontend), `n
 ### Frontend → Vercel
 
 1. Import the GitHub repo in Vercel and set **Root Directory** to `frontend`. Vercel auto-detects Vite (build `npm run build`, output `dist`).
-2. Add the env var `VITE_API_URL` set to the Render URL, e.g. `https://stylework-lead-tracker-api.onrender.com`.
-3. Deploy. Every push to `main` redeploys both services.
+2. Add the env var `VITE_API_URL` set to the Render URL, e.g. `https://stylework-lead-tracker-api.onrender.com`. It is baked into the bundle at build time, so redeploy after changing it.
+3. Deploy. Pushes to `main` redeploy on Render, and on Vercel too once the Git integration is connected.
+
+   Or use the CLI from the **repo root**, since the project's Root Directory is `frontend`:
+   ```bash
+   npx vercel link --project stylework-lead-tracker
+   npx vercel env add VITE_API_URL production
+   npx vercel deploy --prod
+   ```
+
+After both are up, set the Render `CORS_ORIGIN` to the final Vercel domain.
 
 ---
 

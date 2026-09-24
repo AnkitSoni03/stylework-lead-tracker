@@ -40,6 +40,8 @@ I worked with Claude Code conversationally, in Hinglish. These are the main prom
 - Creating the MongoDB Atlas cluster, database user and connection string
 - Account setup: GitHub (which account to publish from), Vercel and Render logins, git identity
 - Reviewing and approving every command that pushed or deployed anything public
+- Creating the public GitHub repo and pushing it (`gh repo create … --push`)
+- Deployment inputs that involve secrets or security settings: pasting `MONGODB_URI` into Render, and allowing Atlas network access (`0.0.0.0/0`) for Render. The AI deliberately left these to me
 - Prioritizing the deliverables: commit trail, docs and deployment
 
 _(If I hand-edit anything after this point, I'll list it here.)_
@@ -52,6 +54,7 @@ The AI's code wasn't accepted on trust. Each step was checked by actually runnin
 - An API smoke test against the real Atlas database (create, duplicate → 409, status update, search, validation → 400, bad id → 400), after which the test data was deleted
 - Automated tests: 18/18 backend, 14/14 frontend
 - A manual check in a real Chrome browser: empty-form validation, creating a lead, changing its status and reloading to confirm it persisted, and searching with no matches
+- A check of the live production deployment (Vercel → Render → Atlas): health check, CORS header for the Vercel origin, creating a lead through the UI, a status change persisted in the DB, and search. The test leads were deleted afterwards
 
 ### Problems found along the way and how they were fixed
 
@@ -63,6 +66,7 @@ The AI's code wasn't accepted on trust. Each step was checked by actually runnin
 | Resetting the page inside an effect would fire a second request | Page resets to 1 inside the search and filter event handlers instead |
 | Port 5173 was already used by another local project, which showed up during the browser test | Ran this app on port 5188 for testing. The other project was left untouched |
 | An unused variable in a test broke `tsc -b` right after a commit | Fixed and amended the commit before anything was pushed |
+| `vercel deploy` from `frontend/` failed with *"Root Directory 'frontend' does not exist"*, because the Vercel project already had Root Directory set to `frontend` | Deployed from the repo root instead. Documented in the README |
 
 ## Key engineering decisions
 
