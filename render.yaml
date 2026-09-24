@@ -1,0 +1,19 @@
+# Render Blueprint for the backend API.
+# Frontend is deployed separately on Vercel (root directory: frontend).
+services:
+  - type: web
+    name: stylework-lead-tracker-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    # --include=dev: TypeScript is a devDependency and is needed for the build
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: MONGODB_URI
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
